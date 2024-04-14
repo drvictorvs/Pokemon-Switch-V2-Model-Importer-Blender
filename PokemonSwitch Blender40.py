@@ -2411,7 +2411,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh):
 
                                 #normals
                                 if bpy.app.version < (4, 1, 0):
-					new_object.data.use_auto_smooth = True
+                                    new_object.data.use_auto_smooth = True
                                 new_object.data.normals_split_custom_set_from_vertices(normal_array)
                                 # add object to scene collection
                                 new_collection.objects.link(new_object)
@@ -4500,7 +4500,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
 
                                 #normals
                                 if bpy.app.version < (4, 1, 0):
-					new_object.data.use_auto_smooth = True
+                                    new_object.data.use_auto_smooth = True
                                 new_object.data.normals_split_custom_set_from_vertices(normal_array)
                                 # add object to scene collection
                                 new_collection.objects.link(new_object)
