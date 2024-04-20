@@ -1152,7 +1152,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh):
 
                 print(f"mat_shader = {mat['mat_shader']}")
                 
-                material.blend_method = ("HASHED")
+                material.blend_method = ("BLEND")
                 material.shadow_method = ("OPAQUE")
                 
                 color_output = principled_bsdf.inputs[0]
@@ -3433,7 +3433,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
 
                 print(f"mat_shader = {mat['mat_shader']}")
                 
-                material.blend_method = ("HASHED")
+                material.blend_method = ("BLEND")
                 material.shadow_method = ("OPAQUE")
                 
                 color_output = principled_bsdf.inputs[0]
