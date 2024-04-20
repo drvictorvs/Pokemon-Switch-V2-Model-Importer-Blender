@@ -1152,14 +1152,16 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh):
 
                 print(f"mat_shader = {mat['mat_shader']}")
                 
-                material.blend_method = ("BLEND")
+                material.blend_method = ("HASHED")
                 material.shadow_method = ("OPAQUE")
-                
+                material.show_transparent_back = False
                 color_output = principled_bsdf.inputs[0]
                 if mat["mat_shader"] == "Unlit":
                     color_output = material_output.inputs[0]
                 if mat["mat_shader"] == "Transparent":
+                    material.show_transparent_back = True
                     material.blend_method = ("BLEND")
+                    material.shadow_method = ("HASHED")
                     reflectionpart1 = material.node_tree.nodes.new("ShaderNodeMath")
                     reflectionpart1.operation = "SQRT"
                     reflectionpart1.inputs[0].default_value = mat["mat_reflectance"]
@@ -1188,7 +1190,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh):
                     material.node_tree.links.new(reflectionpart4.outputs[0], reflectionpart5.inputs[0])
                     
                 material.use_backface_culling = True
-                material.show_transparent_back = False
+                
 
                 
                 basecolor = (mat["mat_color_r"], mat["mat_color_g"], mat["mat_color_b"], 1.0)
@@ -3433,15 +3435,16 @@ def from_trmdl(filep, trmdl, rare, loadlods):
 
                 print(f"mat_shader = {mat['mat_shader']}")
                 
-                material.blend_method = ("BLEND")
-                
+                material.blend_method = ("HASHED")
                 material.shadow_method = ("OPAQUE")
-                
+                material.show_transparent_back = False
                 color_output = principled_bsdf.inputs[0]
                 if mat["mat_shader"] == "Unlit":
                     color_output = material_output.inputs[0]
                 if mat["mat_shader"] == "Transparent":
+                    material.show_transparent_back = True
                     material.blend_method = ("BLEND")
+                    material.shadow_method = ("HASHED")
                     reflectionpart1 = material.node_tree.nodes.new("ShaderNodeMath")
                     reflectionpart1.operation = "SQRT"
                     reflectionpart1.inputs[0].default_value = mat["mat_reflectance"]
@@ -3470,7 +3473,8 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                     material.node_tree.links.new(reflectionpart4.outputs[0], reflectionpart5.inputs[0])
                     
                 material.use_backface_culling = True
-                material.show_transparent_back = False
+                    
+
 
                     
                 if chara_check == "Pokemon" or mat["mat_name"] == "eye":

@@ -4563,6 +4563,7 @@ def get_current_menu_item(menu, item):
     return None
 
 def register():
+    # PLA
     bpy.utils.register_class(PokeArcImport)
     bpy.utils.register_class(PokeSVImport)
     if get_current_menu_item(bpy.types.TOPBAR_MT_file_import, ImportTRMDL_menu_func_import) is None:
