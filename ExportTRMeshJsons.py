@@ -1,10 +1,7 @@
-# credits for trmsh/trmbf exporting go to @mv at Pokémon Switch Modding
-
 import bpy
 from statistics import mean
 from mathutils import Vector, Euler
 import os, json, struct
-
 
 TRMSH = ".trmsh"
 TRSKL = ".trskl"
@@ -417,78 +414,53 @@ from bpy.types import Operator
 
 
 class ExportTRMeshJsons(Operator, ExportHelper):
-  """This appears in the tooltip of the operator and in the generated docs"""
-
-  bl_idname = "export_test.some_data"  # important since its how bpy.ops.import_test.some_data is constructed
+  """Saves TRMDL, TRMSH and TRMBF JSONs for Pokémon Scarlet and Violet."""
+  bl_idname = "pokemonswitch.exporttrmesh"  # important since its how bpy.ops.import_test.some_data is constructed
   bl_label = "Export Here"
-
-  # ExportHelper mixin class uses this
-  filename_ext = ".json"
-
-  filter_glob: StringProperty(
-    default="*.trskl",
-    options={"HIDDEN"},
-    maxlen=255,  # Max internal buffer length, longer would be clamped.
-  )
-
-  # List of operator properties, the attributes will be assigned
-  # to the class instance from the operator settings before calling.
-
+  filepath: bpy.props.StringProperty(subtype='FILE_PATH')
   use_obj_armature: BoolProperty(
     name="Use Armature from Blender",
     default=True,
   )
-  
   include_armature: BoolProperty(
     name="Include Armature",
     default=True,
   )
-  
   use_normal: BoolProperty(
     name="Use Normal",
     default=True,
   )
-
   use_tangent: BoolProperty(
     name="Use Normal",
     default=True,
   )
-
   use_tangent: BoolProperty(
     name="Use Tangent",
     default=True,
   )
-
   use_binormal: BoolProperty(
     name="Use Binormal",
     default=False,
   )
-
   use_uv: BoolProperty(
     name="Use UVs",
     default=True,
   )
-
   uv_count: IntProperty(
     name="UV Layer Count",
     default=1,
   )
-
   use_color: BoolProperty(
     name="Use Vertex Colors",
     default=False,
   )
-
   color_count: IntProperty(
     name="Color Layer Count",
     default=1,
   )
-
   use_skinning: BoolProperty(name="Use Skinning", default=True)
-
   def execute(self, context):
     dest_dir = os.path.dirname(self.filepath)
-
     export_settings = {
       "armature": self.use_obj_armature,
       "incl_armature": self.include_armature,
@@ -501,61 +473,56 @@ class ExportTRMeshJsons(Operator, ExportHelper):
       "color_count": self.color_count,
       "skinning": self.use_skinning,
     }
-    
     collection_name = bpy.context.selected_objects[0].users_collection[0].name
-    
     buffers = []
     meshes = []
-
     for obj in bpy.context.selected_objects:
       buffers.append(get_buffer_data(context,obj,export_settings))
       meshes.append(get_mesh_data(context,obj,export_settings))
-    
     export_buffers = {
       "unused": 0,
       "buffers": buffers,
       }
-      
     export_meshes = {
       "unk0": 0,
       "meshes": meshes,
       "buffer_name": collection_name + TRMBF
       }
-      
     export_model = get_model_data(collection_name, meshes, export_settings)
-      
     meshes_filepath = os.path.join(dest_dir, collection_name + TRMSH + self.filename_ext)
     with open(meshes_filepath, "w", encoding="utf-8") as f:
       f.write(json.dumps(export_meshes, indent=2))
-      
     buffers_filepath = os.path.join(dest_dir, collection_name + TRMBF + self.filename_ext)
     with open(buffers_filepath, "w", encoding="utf-8") as f:
       f.write(json.dumps(export_buffers, indent=2))
-      
     model_filepath = os.path.join(dest_dir, collection_name + TRMDL + self.filename_ext)
     with open(model_filepath, "w", encoding="utf-8") as f:
       f.write(json.dumps(export_model, indent=2))
-      
     return {"FINISHED"}
 
+def ExportTRMesh_menu_func_export(self, context):
+    self.layout.operator("pokemonswitch.exporttrmesh", text="ScVi Mesh JSONs (.trm**.json)")
+    #self.layout.separator()
 
-# Only needed if you want to add into a dynamic menu
-def menu_func_export(self, context):
-  self.layout.operator(ExportTRMeshJsons.bl_idname, text="TR JSONs (.trm**.json)")
+def get_current_menu_item(menu, item):
+    for func in menu._dyn_ui_initialize():
+        if func.__name__ == item.__name__:
+            return func
+    return None
 
-
-# Register and add to the "file selector" menu (required to use F3 search "Text Export Operator" for quick access)
 def register():
-  bpy.utils.register_class(ExportTRMeshJsons)
-  bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
-
+    bpy.utils.register_class(ExportTRMeshJsons)
+    if get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRMesh_menu_func_export) is None:
+        bpy.types.TOPBAR_MT_file_export.append(ExportTRMesh_menu_func_export)
+    else:
+        func = get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRMesh_menu_func_export)
+        bpy.types.TOPBAR_MT_file_export.remove(func)
+        bpy.types.TOPBAR_MT_file_export.append(ExportTRMesh_menu_func_export)
 
 def unregister():
-  bpy.utils.unregister_class(ExportTRMeshJsons)
-  bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
-
+    bpy.utils.unregister_class(ExportTRMeshJsons)
+    if get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRMesh_menu_func_export) is not None:
+        bpy.types.TOPBAR_MT_file_export.remove(ExportTRMesh_menu_func_export)
 
 if __name__ == "__main__":
-  register()
-  bpy.ops.export_test.some_data("INVOKE_DEFAULT")
-  # unregister()
+    register()

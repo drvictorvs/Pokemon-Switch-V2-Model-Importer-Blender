@@ -1,4 +1,46 @@
-import bpy, json, mathutils
+import bpy
+from bpy_extras.io_utils import ExportHelper
+from bpy.props import StringProperty, BoolProperty, IntProperty
+from bpy.types import Operator
+
+class ExportTRSKLJsons(Operator, ExportHelper):
+  """Save a TRSKL JSON for Pokémon Scarlet/Violet"""
+  bl_idname = "pokemonswitch.exportarmature"  # important since its how bpy.ops.import_test.some_data is constructed
+  bl_label = "Export Armature"
+  def execute(self, context):
+    dest_dir = os.path.dirname(self.filepath)
+    for obj in bpy.context.selected_objects:
+        save_skeleton_data(obj.get_armature()) 
+    print(f"Skeleton data saved to '{dest_dir}'.")
+    return {"FINISHED"}
+
+# Only needed if you want to add into a dynamic menu
+def ExportTRSKL_menu_func_export(self, context):
+  self.layout.operator(ExportTRSKLJsons.bl_idname, text="ScVi TRSKL JSON (.trskl.json)")
+  #self.layout.separator()
+
+def get_current_menu_item(menu, item):
+    for func in menu._dyn_ui_initialize():
+        if func.__name__ == item.__name__:
+            return func
+    return None
+
+def register():
+    bpy.utils.register_class(ExportTRSKLJsons)
+    if get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export) is None:
+        bpy.types.TOPBAR_MT_file_export.append(ExportTRSKL_menu_func_export)
+    else:
+        func = get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export)
+        bpy.types.TOPBAR_MT_file_export.remove(func)
+        bpy.types.TOPBAR_MT_file_export.append(ExportTRSKL_menu_func_export)
+
+def unregister():
+    bpy.utils.unregister_class(ExportTRSKLJsons)
+    if get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export) is not None:
+        bpy.types.TOPBAR_MT_file_export.remove(ExportTRSKL_menu_func_export)
+
+if __name__ == "__main__":
+  register()
 
 def get_pose_bone_transform(pose_bone):
     if pose_bone.parent:
@@ -51,7 +93,17 @@ def get_ik_data(pose_bone):
             ik_data.append(ik)
     return ik_data
 
-def save_skeleton_data(armature_name, file_path):
+def save_skeleton_data(armature_name):
+    def serialize(o):
+        if isinstance(o, float):
+            if abs(o) < 1e-5:
+                return float(0)
+            return round(o, 6)
+        if isinstance(o, dict):
+            return {k: serialize(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [serialize(element) for element in o]
+        return o
     armature = bpy.data.objects.get(armature_name)
     if not armature or armature.type != 'ARMATURE':
         print(f"Armature '{armature_name}' not found.")
@@ -65,8 +117,8 @@ def save_skeleton_data(armature_name, file_path):
             "transform": get_pose_bone_transform(pose_bone),
             "scalePivot": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotatePivot": {"x": 0.0, "y": 0.0, "z": 0.0},
-            #"scalePivot": get_pose_bone_pivot(pose_bone),
-            #"rotatePivot": get_pose_bone_pivot(pose_bone),
+            #"scalePivot": get_pose_bone_pivot(pose_bone), TODO (all zero on character skeletons)
+            #"rotatePivot": get_pose_bone_pivot(pose_bone), TODO (all zero on character skeletons)
             "parent_idx": armature.pose.bones.find(pose_bone.parent.name) if pose_bone.parent else -1,
             "rig_idx": max(-1,armature.pose.bones.find(pose_bone.name) - 2), 
             "effect_node": "", 
@@ -75,27 +127,22 @@ def save_skeleton_data(armature_name, file_path):
         transform_nodes.append(pose_bone_data)
         iks.extend(get_ik_data(pose_bone))
     for bone in armature.data.bones:
-        # Add bone data
         bone_data = {
-            "inherit_position": 1,  # Adjust as needed
-            "unk_bool_2": 1,  # Adjust as needed
+            "inherit_position": 1,  
+            "unk_bool_2": 1,  
             "matrix": get_bone_matrix(bone)
         }
         bones.append(bone_data)
-        # Add IK data if the bone has IK constraints
         pose_bone = armature.pose.bones.get(bone.name)
-    # Save the data to a JSON file
-    with open(file_path, 'w') as f:
-        json.dump(serialize({"res_0": 0,"transform_nodes": transform_nodes, "bones": bones, "iks": iks, "rig_offset": 0}), f, indent=2)
-    print(f"Skeleton data saved to '{file_path}'.")
-
-def serialize(o):
-        if isinstance(o, float):
-            if abs(o) < 1e-5:
-                return float(0)
-            return round(o, 6)
-        if isinstance(o, dict):
-            return {k: serialize(v) for k, v in o.items()}
-        if isinstance(o, list):
-            return [serialize(element) for element in o]
-        return o
+        
+    data = serialize(
+        {
+        "res_0": 0,
+        "transform_nodes": transform_nodes, 
+        "bones": bones, 
+        "iks": iks, 
+        "rig_offset": 0
+        }
+        )
+        
+    return data
