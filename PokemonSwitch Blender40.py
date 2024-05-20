@@ -485,8 +485,8 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh):
                         new_bone.matrix = bone_matrix
 
                         if bone_parent != 0:
-                            new_bone.parent = bone_array[bone_parent - 1]
-                            new_bone.matrix = bone_array[bone_parent - 1].matrix @ bone_matrix
+                            new_bone.parent = new_armature.edit_bones[bone_parent - 1]
+                            new_bone.matrix = new_armature.edit_bones[bone_parent - 1].matrix @ bone_matrix
 
                         if bone_name in bone_rig_array:
                             bone_id_map[bone_rig_array.index(bone_name)] = bone_name
