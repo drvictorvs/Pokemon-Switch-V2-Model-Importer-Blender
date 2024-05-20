@@ -1,4 +1,4 @@
-# credits for trmsh/trmbf exporting go to @mv at Pokémon Switch Modding
+# credits for trmsh/trmbf exporting go to @mv at Pokémon Switch Modding Discord Server
 
 import bpy
 from statistics import mean
@@ -316,42 +316,31 @@ def get_buffer_data(context, obj, settings):
 def get_model_data(collection_name, meshes, settings):
   
   def find_bounds(array):
-    # Initialize min and max bounds with the first struct's values
     min_bound = array[0]['bounds']['min'].copy()
     max_bound = array[0]['bounds']['max'].copy()
-
-    # Loop through each struct in the array
     for item in array:
-        # Update min bounds
         min_bound['x'] = min(min_bound['x'], item['bounds']['min']['x'])
         min_bound['y'] = min(min_bound['y'], item['bounds']['min']['y'])
         min_bound['z'] = min(min_bound['z'], item['bounds']['min']['z'])
-
-        # Update max bounds
         max_bound['x'] = max(max_bound['x'], item['bounds']['max']['x'])
         max_bound['y'] = max(max_bound['y'], item['bounds']['max']['y'])
         max_bound['z'] = max(max_bound['z'], item['bounds']['max']['z'])
         
-    max_bound['x'] = max(max_bound['x'],  min_bound['x'] * -1)
+    max_bound['x'] = max(max_bound['x'],  min_bound['x'] * -1) # somehow this seems to happen
 
     # Return the new bounds struct
     return {'min': min_bound, 'max': max_bound}
     
   def find_texture_space():
     array = bpy.context.selected_objects
-    # Initialize min and max bounds with the first object's Euler angles
     euler_angles = array[0].to_mesh().texspace_location.copy()
-    euler = Euler((euler_angles.x, euler_angles.y, euler_angles.z), 'XYZ')  # Assuming XYZ rotation order
-    # Loop through each object in the array
+    euler = Euler((euler_angles.x, euler_angles.y, euler_angles.z), 'XYZ')
+    # TODO I have no idea what I'm doing here
     for item in array:
-        # Update Euler angles
         euler.x = mean([euler.x, item.to_mesh().texspace_location.x])
         euler.y = mean([euler.y, item.to_mesh().texspace_location.y])
         euler.z = mean([euler.z, item.to_mesh().texspace_location.z])
-    # Convert Euler angles to Quaternion
-
     quat = euler.to_quaternion()
-    # Return the new Quaternion
     return quat
   
   texture_space = find_texture_space()
