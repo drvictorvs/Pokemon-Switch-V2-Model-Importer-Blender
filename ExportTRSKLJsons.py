@@ -1,46 +1,66 @@
-import bpy
+bl_info = {
+    "name": "TRSKL JSON Armature Exporter (.TRSKL.json)",
+    "author": "drvictorvs",
+    "version": (0, 0, 1),
+    "blender": (4, 0, 0),
+    "location": "File > Export",
+    "description": "Exports TRSKL JSON armatures for Pokémon Switch",
+    "warning": "",
+    "category": "Export",
+}
+
+import os, bpy, json
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator
 
+
 class ExportTRSKLJsons(Operator, ExportHelper):
-  """Save a TRSKL JSON for Pokémon Scarlet/Violet"""
-  bl_idname = "pokemonswitch.exportarmature"  # important since its how bpy.ops.import_test.some_data is constructed
-  bl_label = "Export Armature"
-  def execute(self, context):
-    dest_dir = os.path.dirname(self.filepath)
-    for obj in bpy.context.selected_objects:
-        save_skeleton_data(obj.get_armature()) 
-    print(f"Skeleton data saved to '{dest_dir}'.")
-    return {"FINISHED"}
+    """Save a TRSKL JSON for Pokémon Scarlet/Violet"""
+
+    bl_idname = "pokemonswitch.exportarmature"  # important since its how bpy.ops.import_test.some_data is constructed
+    bl_label = "Export Armature"
+    filename_ext = ".json"
+
+    def execute(self, context):
+        dest_dir = os.path.dirname(self.filepath)
+        filedata = []
+        for obj in bpy.context.selected_objects:
+            if obj.type == "ARMATURE":
+                save_skeleton_data(obj, dest_dir)
+            elif obj.find_armature() is not None:
+                save_skeleton_data(obj.find_armature(), dest_dir)
+        return {"FINISHED"}
+
 
 # Only needed if you want to add into a dynamic menu
 def ExportTRSKL_menu_func_export(self, context):
-  self.layout.operator(ExportTRSKLJsons.bl_idname, text="ScVi TRSKL JSON (.trskl.json)")
-  #self.layout.separator()
+    self.layout.operator(
+        ExportTRSKLJsons.bl_idname, text="ScVi TRSKL JSON (.trskl.json)"
+    )
 
-def get_current_menu_item(menu, item):
+
+def replace_current_menu_item(menu, item):
     for func in menu._dyn_ui_initialize():
         if func.__name__ == item.__name__:
-            return func
-    return None
+            menu.remove(func)
+    menu.append(item)
+
 
 def register():
     bpy.utils.register_class(ExportTRSKLJsons)
-    if get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export) is None:
-        bpy.types.TOPBAR_MT_file_export.append(ExportTRSKL_menu_func_export)
-    else:
-        func = get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export)
-        bpy.types.TOPBAR_MT_file_export.remove(func)
-        bpy.types.TOPBAR_MT_file_export.append(ExportTRSKL_menu_func_export)
+    replace_current_menu_item(
+        bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export
+    )
+
 
 def unregister():
     bpy.utils.unregister_class(ExportTRSKLJsons)
-    if get_current_menu_item(bpy.types.TOPBAR_MT_file_export, ExportTRSKL_menu_func_export) is not None:
-        bpy.types.TOPBAR_MT_file_export.remove(ExportTRSKL_menu_func_export)
+
 
 if __name__ == "__main__":
-  register()
+    register()
+
 
 def get_pose_bone_transform(pose_bone):
     if pose_bone.parent:
@@ -52,8 +72,9 @@ def get_pose_bone_transform(pose_bone):
     return {
         "VecScale": {"x": scale.x, "y": scale.y, "z": scale.z},
         "VecRot": {"x": rot.x, "y": rot.y, "z": rot.z},
-        "VecTranslate": {"x": loc.x, "y": loc.y, "z": loc.z}
+        "VecTranslate": {"x": loc.x, "y": loc.y, "z": loc.z},
     }
+
 
 def get_pose_bone_pivot(pose_bone):
     if pose_bone.parent:
@@ -65,35 +86,38 @@ def get_pose_bone_pivot(pose_bone):
     return {
         "x": pivot_tail.x - pivot_head.x,
         "y": pivot_tail.y - pivot_head.y,
-        "z": pivot_tail.z - pivot_head.z
+        "z": pivot_tail.z - pivot_head.z,
     }
+
 
 def get_bone_matrix(bone):
     return {
         "x": {"x": bone.matrix[0][0], "y": bone.matrix[1][0], "z": bone.matrix[2][0]},
         "y": {"x": bone.matrix[0][1], "y": bone.matrix[1][1], "z": bone.matrix[2][1]},
         "z": {"x": bone.matrix[0][2], "y": bone.matrix[1][2], "z": bone.matrix[2][2]},
-        "w": {"x": bone.head_local.x, "y": bone.head_local.y, "z": bone.head_local.z}
+        "w": {"x": bone.head_local.x, "y": bone.head_local.y, "z": bone.head_local.z},
     }
+
 
 # TODO
 def get_ik_data(pose_bone):
     ik_data = []
     for constraint in pose_bone.constraints:
-        if constraint.type == 'IK':
+        if constraint.type == "IK":
             ik = {
                 "ik_name": pose_bone.name,
                 "ik_chain_start": pose_bone.name,
                 "ik_chain_end": constraint.subtarget,
-                "ik_type": "TwistBend",  
-                "res_4": 0,  
-                "ik_pos": {"x": 1.0, "y": 0.4, "z": 0.0}, 
-                "ik_rot": {"w": 0.0, "x": -0.707107, "y": 0.0, "z": 0.707107}  
+                "ik_type": "TwistBend",
+                "res_4": 0,
+                "ik_pos": {"x": 1.0, "y": 0.4, "z": 0.0},
+                "ik_rot": {"w": 0.0, "x": -0.707107, "y": 0.0, "z": 0.707107},
             }
             ik_data.append(ik)
     return ik_data
 
-def save_skeleton_data(armature_name):
+
+def save_skeleton_data(armature, path):
     def serialize(o):
         if isinstance(o, float):
             if abs(o) < 1e-5:
@@ -104,8 +128,8 @@ def save_skeleton_data(armature_name):
         if isinstance(o, list):
             return [serialize(element) for element in o]
         return o
-    armature = bpy.data.objects.get(armature_name)
-    if not armature or armature.type != 'ARMATURE':
+
+    if not armature or armature.type != "ARMATURE":
         print(f"Armature '{armature_name}' not found.")
         return
     transform_nodes = []
@@ -117,32 +141,43 @@ def save_skeleton_data(armature_name):
             "transform": get_pose_bone_transform(pose_bone),
             "scalePivot": {"x": 0.0, "y": 0.0, "z": 0.0},
             "rotatePivot": {"x": 0.0, "y": 0.0, "z": 0.0},
-            #"scalePivot": get_pose_bone_pivot(pose_bone), TODO (all zero on character skeletons)
-            #"rotatePivot": get_pose_bone_pivot(pose_bone), TODO (all zero on character skeletons)
-            "parent_idx": armature.pose.bones.find(pose_bone.parent.name) if pose_bone.parent else -1,
-            "rig_idx": max(-1,armature.pose.bones.find(pose_bone.name) - 2), 
-            "effect_node": "", 
-            "type": "Default"  
+            # "scalePivot": get_pose_bone_pivot(pose_bone), TODO (all zero on character skeletons)
+            # "rotatePivot": get_pose_bone_pivot(pose_bone), TODO (all zero on character skeletons)
+            "parent_idx": (
+                armature.pose.bones.find(pose_bone.parent.name)
+                if pose_bone.parent
+                else -1
+            ),
+            "rig_idx": max(-1, armature.pose.bones.find(pose_bone.name) - 2),
+            "effect_node": "",
+            "type": "Default",
         }
         transform_nodes.append(pose_bone_data)
         iks.extend(get_ik_data(pose_bone))
     for bone in armature.data.bones:
         bone_data = {
-            "inherit_position": 1,  
-            "unk_bool_2": 1,  
-            "matrix": get_bone_matrix(bone)
+            "inherit_position": 1,
+            "unk_bool_2": 1,
+            "matrix": get_bone_matrix(bone),
         }
         bones.append(bone_data)
         pose_bone = armature.pose.bones.get(bone.name)
-        
+
     data = serialize(
         {
-        "res_0": 0,
-        "transform_nodes": transform_nodes, 
-        "bones": bones, 
-        "iks": iks, 
-        "rig_offset": 0
+            "res_0": 0,
+            "transform_nodes": transform_nodes,
+            "bones": bones,
+            "iks": iks,
+            "rig_offset": 0,
         }
-        )
-        
-    return data
+    )
+
+    dest_file = os.path.join(path, armature.name + ".trskl.json")
+
+    with open(dest_file, "w") as f:
+        json.dump(data, f, indent=2)
+
+    print(f"Skeleton data saved to '{dest_file}'.")
+
+    return {"FINISHED"}
