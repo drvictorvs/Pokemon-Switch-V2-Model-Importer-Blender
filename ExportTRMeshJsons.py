@@ -20,7 +20,7 @@ from mathutils import Vector, Euler
 if hasattr(os.environ, "FLATC_PATH"):
     FLATC_PATH = os.environ["FLATC_PATH"]
 else:
-    FLATC_PATH = "C:\\Users\\victor.vasconcelos\\OneDrive\\Games\\Modding\\Mechanics Editor\\flatc.exe"
+    FLATC_PATH = "YOUR PATH TO FLATC.EXE HERE"
 TRMSH = ".trmsh"
 TRSKL = ".trskl"
 TRMDL = ".trmdl"
