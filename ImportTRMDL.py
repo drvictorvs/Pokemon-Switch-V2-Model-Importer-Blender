@@ -10,14 +10,11 @@ bl_info = {
 }
 
 import os
-from os import path
 import os.path
-import random
 import struct
 from pathlib import Path
 from bpy.props import (
     BoolProperty,
-    FloatProperty,
     StringProperty,
     EnumProperty,
     CollectionProperty,
@@ -25,23 +22,17 @@ from bpy.props import (
 from bpy_extras.io_utils import ImportHelper
 from bpy.types import (
     Operator,
-    OperatorFileListElement,
 )
 import bpy
 import mathutils
-import math
-import glob
-import shutil
-import sys
 
 
 # READ THIS: change to True when running in Blender, False when running using fake-bpy-module-latest
 IN_BLENDER_ENV = True
 
 
-class PokeSVImport(bpy.types.Operator, ImportHelper):
+class PokeSVImport(Operator, ImportHelper):
     """Open a TRMDL file from Pokémon Scarlet/Violet"""
-
     bl_idname = "custom_import_scene.pokemonscarletviolet"
     bl_label = "Import"
     bl_options = {"PRESET", "UNDO"}
@@ -55,6 +46,12 @@ class PokeSVImport(bpy.types.Operator, ImportHelper):
         subtype="FILE_PATH",
     )
     files = CollectionProperty(type=bpy.types.PropertyGroup)
+    basearmature: EnumProperty(
+        default='donothing',
+        items=(('donothing','Load armature in .trmdl','Load armature in .trmdl'),
+        ('loadbasearm',"Load base armature","Load base armature"),
+        ('assigntobase',"Assign to base armature","Assign to base armature")),
+        name="Uniforms")
     rare: BoolProperty(
         name="Load Shiny",
         description="Uses rare material instead of normal one",
@@ -70,17 +67,11 @@ class PokeSVImport(bpy.types.Operator, ImportHelper):
         description="Uses rare material instead of normal one",
         default=False,
     )
-    loadbasearm: BoolProperty(
-        name="Load Base Armature",
-        description="Load base armature when opening uniforms",
-        default=True,
-    )
     bonestructh: BoolProperty(
         name="Bone Extras (WIP)",
         description="Bone Extras (WIP)",
         default=False,
     )
-
     def draw(self, context):
         layout = self.layout
         box = layout.box()
@@ -90,16 +81,17 @@ class PokeSVImport(bpy.types.Operator, ImportHelper):
         box = layout.box()
         box.prop(self, "loadlods")
         box = layout.box()
-        box.prop(self, "loadbasearm")
-        box = layout.box()
         box.prop(self, "bonestructh")
-
+        box = layout.box()
+        box.prop(self, "basearmature")
+        
     def execute(self, context):
         directory = os.path.dirname(self.filepath)
         if self.multiple == False:
             filename = os.path.basename(self.filepath)
             f = open(os.path.join(directory, filename), "rb")
-            from_trmdlsv(directory, f, self.rare, self.loadlods, self.bonestructh)
+            from_trmdlsv(directory, f, self.rare, self.loadlods,
+                         self.bonestructh, self.basearmature)
             f.close()
             return {"FINISHED"}
         else:
@@ -113,15 +105,22 @@ class PokeSVImport(bpy.types.Operator, ImportHelper):
                     self.rare,
                     self.loadlods,
                     self.bonestructh,
-                    self.loadbasearm,
+                    self.basearmature,
                 )
                 f.close()
             return {"FINISHED"}
 
 
-def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
+def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, basearmature):
     # make collection
     if IN_BLENDER_ENV:
+      if basearmature == "assigntobase":
+        for collection in bpy.data.collections:
+          for obj in collection.all_objects:
+            if obj.data.name == "p0_base.trskl":
+                new_collection = collection
+                break
+      else:
         new_collection = bpy.data.collections.new(os.path.basename(trmdl.name[:-6]))
         bpy.context.scene.collection.children.link(new_collection)
 
@@ -282,7 +281,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
             # LINE 1227
             print(trmtr_name)
             if x == 0:
-                if rare == True:
+                if rare:
                     trmtr = open(
                         os.path.join(filep, Path(trmtr_name).stem + "_rare.trmtr"), "rb"
                     )
@@ -290,12 +289,16 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                     trmtr = open(os.path.join(filep, trmtr_name), "rb")
             fseek(trmdl, trmtr_ret)
     fclose(trmdl)
+    
+    if basearmature == "assigntobase":
+      if IN_BLENDER_ENV:
+        bone_structure = bpy.data.objects.get(new_collection.name + ".trmdl")
 
     # TODO create bone_rig_array
     # LINE 1247
-    if loadbasearm:
-        if "Default" in chara_check and trskl is None:
-            trskl = open(os.path.join(filep, "p0_base.trskl"), "rb")
+    if basearmature == "loadbasearm":
+        trskl = open(os.path.join(filep, "p0_base.trskl"), "rb")
+        trskl_name = "p0_base.trskl"
 
     if trskl is not None:
         print("Parsing TRSKL...")
@@ -531,7 +534,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         new_bone.use_connect = False
                         new_bone.use_inherit_rotation = True
 
-                        if bonestructh == True:
+                        if bonestructh:
                             if (
                                 trskl_bone_struct_ptr_h
                                 == 0 & bpy.app.version
@@ -1604,7 +1607,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                     os.path.exists(
                         os.path.join(filep, mat["mat_lym0"][:-5] + textureextension)
                     )
-                    == True
+                   is True
                 ):
                     lym_image_texture.image = bpy.data.images.load(
                         os.path.join(filep, mat["mat_lym0"][:-5] + textureextension)
@@ -1800,7 +1803,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                     os.path.exists(
                         os.path.join(filep, mat["mat_col0"][:-5] + textureextension)
                     )
-                    == True
+                   is True
                 ):
                     alb_image_texture = material.node_tree.nodes.new(
                         "ShaderNodeTexImage"
@@ -1837,7 +1840,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_highmsk0"][:-5] + ".png")
                         )
-                        == True
+                       is True
                     ):
                         highlight_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_highmsk0"][:-5] + ".png")
@@ -1849,7 +1852,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
                         )
-                        == True
+                       is True
                     ):
                         highlight_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
@@ -1861,7 +1864,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
                         )
-                        == True
+                       is True
                     ):
                         highlight_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
@@ -1873,7 +1876,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_col0"][:-12] + "r_eye_msk.png")
                         )
-                        == True
+                       is True
                         and mat["mat_name"] == "eye_r"
                     ):
                         highlight_image_texture.image = bpy.data.images.load(
@@ -1886,7 +1889,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_col0"][:-12] + "l_eye_msk.png")
                         )
-                        == True
+                       is True
                         and mat["mat_name"] == "eye_l"
                     ):
                         highlight_image_texture.image = bpy.data.images.load(
@@ -1913,7 +1916,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_nrm0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         normal_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_nrm0"][:-5] + textureextension)
@@ -1955,7 +1958,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_mtl0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         metalness_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_mtl0"][:-5] + textureextension)
@@ -1975,7 +1978,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_emi0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         emission_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_emi0"][:-5] + textureextension)
@@ -1992,7 +1995,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_rgh0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         roughness_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_rgh0"][:-5] + textureextension)
@@ -2012,7 +2015,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         os.path.exists(
                             os.path.join(filep, mat["mat_ao0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         ambientocclusion_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_ao0"][:-5] + textureextension)
@@ -2026,7 +2029,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         mix_color6.inputs[0].default_value = 0
                     else:
                         mix_color6.inputs[0].default_value = 1.0
-                    if mix_color5 == True:
+                    if mix_color5is True:
                         material.node_tree.links.new(
                             mix_color5.outputs[0], mix_color6.inputs[0]
                         )
@@ -2062,7 +2065,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                     os.path.exists(
                         os.path.join(filep, mat["mat_col0"][:-5] + textureextension)
                     )
-                    == True
+                   is True
                 ):
                     if (
                         color1 == (1.0, 1.0, 1.0, 1.0)
@@ -3192,7 +3195,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                                                     (colorr, colorg, colorb)
                                                 )
                                                 alpha_array.append(colora)
-                                                if trskl is not None:
+                                                if trskl is not None or bone_structure is not None:
                                                     w1_array.append(
                                                         {
                                                             "weight1": weight1,
@@ -3592,6 +3595,8 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                                         for vert_idx, loop_idx in zip(
                                             face.vertices, face.loop_indices
                                         ):
+                                            print(len(weight_array))
+                                            print(vert_idx)
                                             w = weight_array[vert_idx]
                                             for i in range(len(w["boneids"])):
                                                 try:
@@ -3695,9 +3700,8 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                                 new_collection.objects.link(new_object)
 
 
-class PokeArcImport(bpy.types.Operator, ImportHelper):
+class PokeArcImport(Operator, ImportHelper):
     """Open a TRMDL file from Pokémon Legends Arceus"""
-
     bl_idname = "custom_import_scene.pokemonlegendsarceus"
     bl_label = "Import"
     bl_options = {"PRESET", "UNDO"}
@@ -3726,7 +3730,6 @@ class PokeArcImport(bpy.types.Operator, ImportHelper):
         description="Uses rare material instead of normal one",
         default=False,
     )
-
     def draw(self, context):
         layout = self.layout
         box = layout.box()
@@ -3735,7 +3738,6 @@ class PokeArcImport(bpy.types.Operator, ImportHelper):
         box.prop(self, "multiple")
         box = layout.box()
         box.prop(self, "loadlods")
-
     def execute(self, context):
         directory = os.path.dirname(self.filepath)
         if self.multiple == False:
@@ -3916,7 +3918,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
             # LINE 1227
             print(trmtr_name)
             if x == 0:
-                if rare == True:
+                if rareis True:
                     trmtr = open(
                         os.path.join(filep, Path(trmtr_name).stem + "_rare.trmtr"), "rb"
                     )
@@ -5133,7 +5135,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                         os.path.exists(
                             os.path.join(filep, mat["mat_lym0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         lym_image_texture.image = bpy.data.images.load(
                             os.path.join(filep, mat["mat_lym0"][:-5] + textureextension)
@@ -5329,7 +5331,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                         os.path.exists(
                             os.path.join(filep, mat["mat_col0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         alb_image_texture = material.node_tree.nodes.new(
                             "ShaderNodeTexImage"
@@ -5352,7 +5354,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                             os.path.exists(
                                 os.path.join(filep, mat["mat_highmsk0"][:-5] + ".png")
                             )
-                            == True
+                           is True
                         ):
                             highlight_image_texture.image = bpy.data.images.load(
                                 os.path.join(filep, mat["mat_highmsk0"][:-5] + ".png")
@@ -5364,7 +5366,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                             os.path.exists(
                                 os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
                             )
-                            == True
+                           is True
                         ):
                             highlight_image_texture.image = bpy.data.images.load(
                                 os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
@@ -5376,7 +5378,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                             os.path.exists(
                                 os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
                             )
-                            == True
+                           is True
                         ):
                             highlight_image_texture.image = bpy.data.images.load(
                                 os.path.join(filep, mat["mat_col0"][:-8] + "msk.png")
@@ -5390,7 +5392,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_col0"][:-12] + "r_eye_msk.png"
                                 )
                             )
-                            == True
+                           is True
                         ):
                             highlight_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5406,7 +5408,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_col0"][:-12] + "l_eye_msk.png"
                                 )
                             )
-                            == True
+                           is True
                         ):
                             highlight_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5438,7 +5440,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_nrm0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             normal_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5496,7 +5498,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_mtl0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             metalness_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5521,7 +5523,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_emi0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             emission_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5543,7 +5545,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_rgh0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             roughness_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5568,7 +5570,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_ao0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             ambientocclusion_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5587,7 +5589,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                             mix_color6.inputs[0].default_value = 0
                         else:
                             mix_color6.inputs[0].default_value = 1.0
-                        if mix_color5 == True:
+                        if mix_color5is True:
                             material.node_tree.links.new(
                                 mix_color5.outputs[0], mix_color6.inputs[0]
                             )
@@ -5613,7 +5615,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                         os.path.exists(
                             os.path.join(filep, mat["mat_col0"][:-5] + textureextension)
                         )
-                        == True
+                       is True
                     ):
                         if (
                             color1 == (1.0, 1.0, 1.0, 1.0)
@@ -5641,7 +5643,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_col0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             alb_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5663,7 +5665,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                             os.path.exists(
                                 os.path.join(filep, mat["mat_highmsk0"][:-5] + ".png")
                             )
-                            == True
+                           is True
                         ):
                             highlight_image_texture.image = bpy.data.images.load(
                                 os.path.join(filep, mat["mat_highmsk0"][:-5] + ".png")
@@ -5698,7 +5700,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_nrm0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             normal_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5753,7 +5755,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_emi0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             emission_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5775,7 +5777,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_mtl0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             metalness_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5800,7 +5802,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_rgh0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             roughness_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -5825,7 +5827,7 @@ def from_trmdl(filep, trmdl, rare, loadlods):
                                     filep, mat["mat_ao0"][:-5] + textureextension
                                 )
                             )
-                            == True
+                           is True
                         ):
                             ambientocclusion_image_texture.image = bpy.data.images.load(
                                 os.path.join(
@@ -7084,7 +7086,6 @@ def fclose(file):
 
 #### Register ####
 def ImportTRMDL_menu_func_import(self, context):
-    self.separator()
     self.layout.operator(PokeArcImport.bl_idname, text="PLA Model (.trmdl)")
     self.layout.operator(PokeSVImport.bl_idname, text="ScVi Model (.trmdl)")
 
@@ -7093,6 +7094,7 @@ def replace_current_menu_item(menu, item):
     for func in menu._dyn_ui_initialize():
         if func.__name__ == item.__name__:
             menu.remove(func)
+            
     menu.append(item)
 
 

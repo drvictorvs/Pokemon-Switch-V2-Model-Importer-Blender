@@ -461,8 +461,8 @@ class ExportTRMeshJsons(Operator, ExportHelper):
         armatures = []
         for obj in bpy.context.selected_objects:
             if obj.type == "ARMATURE":
-                armatures.append(obj.name)
-            elif obj.type == "MESH":
+                armatures.append(obj.data.name)
+            if obj.type == "MESH":
                 objs.append(obj)
                 continue
             if hasattr(obj, "users_collection"):
@@ -477,11 +477,11 @@ class ExportTRMeshJsons(Operator, ExportHelper):
                         if child.type == "MESH":
                             objs.append(child)
                         elif child.type == "ARMATURE":
-                            armatures.append(child.name)
+                            armatures.append(child.data.name)
 
-        if len(collections) != 1:
+        if len(collections) > 1:
             raise (Exception("Please select objects in only one collection."))
-        if len(armatures) != 1:
+        if len(armatures) > 1:
             raise (Exception("Please select objects with only one armature."))
 
         dest_dir = os.path.dirname(self.filepath)
@@ -557,6 +557,15 @@ def to_binary(filepath, fileext):
     if isinstance(result, subprocess.CalledProcessError):
         print(f"Failed to convert '{filepath}' to binary.")
     else:
+        output_file = os.path.realpath(os.path.dirname(filepath) + 
+        "\\Modded\\" + 
+        os.path.basename(filepath).strip(".json") +
+        fileext 
+        )
+        if os.path.exists(output_file):
+            rename_call = ["powershell.exe", "-Command", 
+            f"Move-Item '{output_file}' '{output_file.removesuffix(fileext)}' -Force"]
+            subprocess.run(rename_call, check=True)
         print(f"Successfully converted '{filepath}' to binary.")
 
 

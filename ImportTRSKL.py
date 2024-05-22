@@ -4,38 +4,31 @@ bl_info = {
     "version": (0, 0, 2),
     "blender": (4, 0, 0),
     "location": "File > Import",
-    "description": "drvictorvs simply modified the original importer to only import armatures",
+    "description": "drvictorvs simply modified the original importer to only \
+    import armatures",
     "warning": "",
     "category": "Import",
 }
 
+import math
 import os
-from os import path
 import os.path
 import random
+import shutil
 import struct
+import sys
+from os import path
 from pathlib import Path
-from bpy.props import (
-    BoolProperty,
-    FloatProperty,
-    StringProperty,
-    EnumProperty,
-    CollectionProperty,
-)
-from bpy_extras.io_utils import ImportHelper
-from bpy.types import (
-    Operator,
-    OperatorFileListElement,
-)
+
 import bpy
 import mathutils
-import math
-import glob
-import shutil
-import sys
+from bpy.props import (BoolProperty, CollectionProperty, EnumProperty,
+                       FloatProperty, StringProperty)
+from bpy.types import Operator, OperatorFileListElement
+from bpy_extras.io_utils import ImportHelper
 
-
-# READ THIS: change to True when running in Blender, False when running using fake-bpy-module-latest
+# READ THIS: change to True when running in Blender, False when running using
+# fake-bpy-module-latest
 IN_BLENDER_ENV = True
 
 
@@ -291,7 +284,7 @@ def from_trsklsv(filep, trskl, bonestructh):
 
 
 class PokeArcSkelImport(bpy.types.Operator, ImportHelper):
-    bl_idname = "custom_import_scene.pokeskellegendsarceus"
+    bl_idname = "custom_import_armature.pokeskellegendsarceus"
     bl_label = "Import"
     bl_options = {"PRESET", "UNDO"}
     filename_ext = ".trskl"

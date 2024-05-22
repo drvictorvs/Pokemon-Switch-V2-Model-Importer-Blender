@@ -9,11 +9,15 @@ bl_info = {
     "category": "Export",
 }
 
-import os, bpy, json
+import os, bpy, json, subprocess
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator
 
+if hasattr(os.environ, "FLATC_PATH"):
+    FLATC_PATH = os.environ["FLATC_PATH"]
+else:
+    FLATC_PATH = "PATH TO FLATC.EXE HERE"
 
 class ExportTRSKLJsons(Operator, ExportHelper):
     """Save a TRSKL JSON for Pokémon Scarlet/Violet"""
@@ -32,6 +36,34 @@ class ExportTRSKLJsons(Operator, ExportHelper):
                 save_skeleton_data(obj.find_armature(), dest_dir)
         return {"FINISHED"}
 
+def to_binary(filepath, fileext):
+    filetype = fileext.strip(".")
+    schema_dir = os.path.dirname(FLATC_PATH) + f"\\Schemas\\Filetypes\\{filetype}.fbs"
+    flatc_call = [
+        FLATC_PATH,
+        "--filename-ext",
+        filetype,
+        "-o",
+        os.path.dirname(filepath) + "\\Modded\\",
+        "-b",
+        schema_dir,
+        filepath,
+    ]
+    print(flatc_call)
+    result = subprocess.run(flatc_call, check=True)
+    if isinstance(result, subprocess.CalledProcessError):
+        print(f"Failed to convert '{filepath}' to binary.")
+    else:
+        output_file = os.path.realpath(os.path.dirname(filepath) + 
+                                       "\\Modded\\" + 
+                                       os.path.basename(filepath).strip(".json") +
+                                       fileext 
+        )
+        if os.path.exists(output_file):
+            rename_call = ["powershell.exe", "-Command", 
+            f"Move-Item '{output_file}' '{output_file.removesuffix(fileext)}' -Force"]
+            subprocess.run(rename_call, check=True)
+        print(f"Successfully converted '{filepath}' to binary.")
 
 # Only needed if you want to add into a dynamic menu
 def ExportTRSKL_menu_func_export(self, context):
@@ -173,11 +205,14 @@ def save_skeleton_data(armature, path):
         }
     )
 
-    dest_file = os.path.join(path, armature.name + ".trskl.json")
+    dest_file = os.path.join(path, armature.data.name + ".json")
 
     with open(dest_file, "w") as f:
         json.dump(data, f, indent=2)
+    
+    to_binary(dest_file, ".trskl")
 
     print(f"Skeleton data saved to '{dest_file}'.")
 
     return {"FINISHED"}
+
