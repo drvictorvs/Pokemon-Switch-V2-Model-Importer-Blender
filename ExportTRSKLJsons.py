@@ -11,13 +11,12 @@ bl_info = {
 
 import os, bpy, json, subprocess
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator
 
-if hasattr(os.environ, "FLATC_PATH"):
-    FLATC_PATH = os.environ["FLATC_PATH"]
+if "FLATC_PATH" in os.environ:
+  FLATC_PATH = os.environ["FLATC_PATH"]
 else:
-    FLATC_PATH = "PATH TO FLATC.EXE HERE"
+  FLATC_PATH = "PATH TO FLATC.EXE HERE"
 
 class ExportTRSKLJsons(Operator, ExportHelper):
     """Save a TRSKL JSON for Pokémon Scarlet/Violet"""
@@ -39,33 +38,43 @@ class ExportTRSKLJsons(Operator, ExportHelper):
 def to_binary(filepath, fileext):
     filetype = fileext.strip(".")
     schema_dir = os.path.dirname(FLATC_PATH) + f"\\Schemas\\Filetypes\\{filetype}.fbs"
+    output_folder = os.path.dirname(filepath) + "\\Modded\\"
+    
+    if not os.path.exists(output_folder):
+      os.makedirs(output_folder)
+
     flatc_call = [
         FLATC_PATH,
         "--filename-ext",
         filetype,
         "-o",
-        os.path.dirname(filepath) + "\\Modded\\",
+        output_folder,
         "-b",
         schema_dir,
         filepath,
     ]
     print(flatc_call)
     result = subprocess.run(flatc_call, check=True)
+    
     if isinstance(result, subprocess.CalledProcessError):
         print(f"Failed to convert '{filepath}' to binary.")
+        print(result.stdout)
     else:
-        output_file = os.path.realpath(os.path.dirname(filepath) + 
-                                       "\\Modded\\" + 
-                                       os.path.basename(filepath).strip(".json") +
-                                       fileext 
+        output_file = os.path.realpath(
+        output_folder +
+        os.path.basename(filepath).strip(".json") +
+        fileext 
         )
         if os.path.exists(output_file):
             rename_call = ["powershell.exe", "-Command", 
             f"Move-Item '{output_file}' '{output_file.removesuffix(fileext)}' -Force"]
-            subprocess.run(rename_call, check=True)
+            result2 = subprocess.run(rename_call, check=True)
+            if isinstance(result, subprocess.CalledProcessError):
+                print(f"Failed to rename binary.")
+                print(result2.stdout)
         print(f"Successfully converted '{filepath}' to binary.")
 
-# Only needed if you want to add into a dynamic menu
+
 def ExportTRSKL_menu_func_export(self, context):
     self.layout.operator(
         ExportTRSKLJsons.bl_idname, text="ScVi TRSKL JSON (.trskl.json)"
@@ -162,7 +171,7 @@ def save_skeleton_data(armature, path):
         return o
 
     if not armature or armature.type != "ARMATURE":
-        print(f"Armature '{armature_name}' not found.")
+        print(f"Armature '{armature.data.name}' not found.")
         return
     transform_nodes = []
     iks = []
@@ -204,8 +213,10 @@ def save_skeleton_data(armature, path):
             "rig_offset": 0,
         }
     )
+    
+    armature_name = armature.data.name.replace("trmdl", "trskl")
 
-    dest_file = os.path.join(path, armature.data.name + ".json")
+    dest_file = os.path.join(path, armature_name + ".json")
 
     with open(dest_file, "w") as f:
         json.dump(data, f, indent=2)

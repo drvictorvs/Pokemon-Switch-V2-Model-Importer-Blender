@@ -2026,7 +2026,7 @@ def from_trmdlsv(filep, trmdl, rare, loadlods, bonestructh, loadbasearm):
                         mix_color6.inputs[0].default_value = 0
                     else:
                         mix_color6.inputs[0].default_value = 1.0
-                    if mix_color5 == True:
+                    if mix_color5 is not None:
                         material.node_tree.links.new(
                             mix_color5.outputs[0], mix_color6.inputs[0]
                         )
