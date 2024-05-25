@@ -1,17 +1,16 @@
 
-import os, bpy, json, re, struct, subprocess
+import bpy, struct
 
-from statistics import mean
-from mathutils import Vector, Euler # type: ignore
+from mathutils import Vector # type: ignore
 
 
-vertFormat = struct.Struct("<fff")
-normFormat = struct.Struct("<eeee")
-uvFormat = struct.Struct("<ff")
-colorFormat = struct.Struct("bbbb")
-mtFormat = struct.Struct("<BBBB")
-wtFormat = struct.Struct("<HHHH")
-polyFormat = struct.Struct("<HHH")
+VertFormat = struct.Struct("<fff")
+NormFormat = struct.Struct("<eeee")
+UVFormat = struct.Struct("<ff")
+ColorFormat = struct.Struct("bbbb")
+MTFormat = struct.Struct("<BBBB")
+WTFormat = struct.Struct("<HHHH")
+PolyFormat = struct.Struct("<HHH")
 
 
 def get_poly_count_for_mat(obj, material_name):
@@ -92,7 +91,7 @@ def get_bounds(obj):
     return bbox,clip_sphere
 
 def get_mesh_attributes(settings):
-    vtx_size = vertFormat.size
+    vtx_size = VertFormat.size
     vtx_attrs = [
     {
       "attr_0": 0,
@@ -113,7 +112,7 @@ def get_mesh_attributes(settings):
         "position": vtx_size,
       }
     )
-      vtx_size += normFormat.size
+      vtx_size += NormFormat.size
 
     if settings["tangent"] == 1:
       vtx_attrs.append(
@@ -125,7 +124,7 @@ def get_mesh_attributes(settings):
         "position": vtx_size,
       }
     )
-      vtx_size += normFormat.size
+      vtx_size += NormFormat.size
 
     if settings["uv"] == 1:
       for i in range(settings["uv_count"]):
@@ -138,7 +137,7 @@ def get_mesh_attributes(settings):
           "position": vtx_size,
         },
       )
-        vtx_size += uvFormat.size
+        vtx_size += UVFormat.size
 
     if settings["color"] == 1:
       for i in range(settings["color_count"]):
@@ -151,7 +150,7 @@ def get_mesh_attributes(settings):
           "position": vtx_size,
         },
       )
-        vtx_size += uvFormat.size
+        vtx_size += UVFormat.size
 
     if settings["skinning"] == 1:
       vtx_attrs.append(
@@ -163,7 +162,7 @@ def get_mesh_attributes(settings):
         "position": vtx_size,
       }
     )
-      vtx_size += mtFormat.size
+      vtx_size += MTFormat.size
       vtx_attrs.append(
       {
         "attr_0": 0,
@@ -173,7 +172,7 @@ def get_mesh_attributes(settings):
         "position": vtx_size,
       }
     )
-      vtx_size += wtFormat.size
+      vtx_size += WTFormat.size
 
     attributes = [
     {
@@ -184,37 +183,36 @@ def get_mesh_attributes(settings):
     
     return attributes
 
-
 def get_vertex_bytes(settings, vert_data):
     vert_bytes = b""
 
     for vert in vert_data:
       cursor = 0
       co = vert[cursor]
-      vert_bytes += vertFormat.pack(co[0], co[1], co[2])
+      vert_bytes += VertFormat.pack(co[0], co[1], co[2])
       cursor += 1
 
       if settings["normal"] == 1:
         norm = vert[cursor]
-        vert_bytes += normFormat.pack(norm[0], norm[1], norm[2], 0.0)
+        vert_bytes += NormFormat.pack(norm[0], norm[1], norm[2], 0.0)
         cursor += 1
 
       if settings["tangent"] == 1:
         tan = vert[cursor]
-        vert_bytes += normFormat.pack(tan[0], tan[1], tan[2], 0.0)
+        vert_bytes += NormFormat.pack(tan[0], tan[1], tan[2], 0.0)
         cursor += 1
 
       if settings["uv"] == 1:
         tex = vert[cursor]
-        vert_bytes += uvFormat.pack(tex[0], tex[1])
+        vert_bytes += UVFormat.pack(tex[0], tex[1])
         cursor += 1
 
       if settings["skinning"] == 1:
         grps = [x[0] for x in vert[cursor]]
-        vert_bytes += mtFormat.pack(grps[0], grps[1], grps[2], grps[3])
+        vert_bytes += MTFormat.pack(grps[0], grps[1], grps[2], grps[3])
 
         wgts = [int(x[1] * 0xFFFF) for x in vert[cursor]]
-        vert_bytes += wtFormat.pack(wgts[0], wgts[1], wgts[2], wgts[3])
+        vert_bytes += WTFormat.pack(wgts[0], wgts[1], wgts[2], wgts[3])
     return vert_bytes
 
 def get_poly_bytes(obj, settings, mesh, vert_data, poly_data, bone_dict, uv):
@@ -267,44 +265,6 @@ def get_poly_bytes(obj, settings, mesh, vert_data, poly_data, bone_dict, uv):
     poly_bytes = b""
 
     for poly in poly_data:
-      poly_bytes += polyFormat.pack(poly[0], poly[1], poly[2])
+      poly_bytes += PolyFormat.pack(poly[0], poly[1], poly[2])
     return poly_bytes
 
-def to_binary(filepath, fileext):
-    filetype = fileext.strip(".")
-    schema_dir = os.path.dirname(FLATC_PATH) + f"\\Schemas\\Filetypes\\{filetype}.fbs"
-    output_folder = os.path.dirname(filepath) + "\\Modded\\"
-    
-    if not os.path.exists(output_folder):
-      os.makedirs(output_folder)
-
-    flatc_call = [
-        FLATC_PATH,
-        "--filename-ext",
-        filetype,
-        "-o",
-        output_folder,
-        "-b",
-        schema_dir,
-        filepath,
-    ]
-    print(flatc_call)
-    result = subprocess.run(flatc_call, check=True)
-    
-    if isinstance(result, subprocess.CalledProcessError):
-        print(f"Failed to convert '{filepath}' to binary.")
-        print(result.stdout)
-    else:
-        output_file = os.path.realpath(
-        output_folder +
-        os.path.basename(filepath).strip(".json") +
-        fileext 
-        )
-        if os.path.exists(output_file):
-            rename_call = ["powershell.exe", "-Command", 
-            f"Move-Item '{output_file}' '{output_file.removesuffix(fileext)}' -Force"]
-            result2 = subprocess.run(rename_call, check=True)
-            if isinstance(result, subprocess.CalledProcessError):
-                print(f"Failed to rename binary.")
-                print(result2.stdout)
-        print(f"Successfully converted '{filepath}' to binary.")
