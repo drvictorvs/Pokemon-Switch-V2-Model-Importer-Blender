@@ -13,6 +13,7 @@ bl_info = {
 
 # credits for trmsh/trmbf exporting go to @mv at Pokémon Switch Modding Discord Server
 
+import re
 import os, json, struct, subprocess, bpy
 from statistics import mean
 from mathutils import Vector, Euler
@@ -21,6 +22,7 @@ if hasattr(os.environ, "FLATC_PATH"):
     FLATC_PATH = os.environ["FLATC_PATH"]
 else:
     FLATC_PATH = "YOUR PATH TO FLATC.EXE HERE"
+
 TRMSH = ".trmsh"
 TRSKL = ".trskl"
 TRMDL = ".trmdl"
@@ -47,10 +49,20 @@ def get_mesh_data(context, obj, settings):
     if obj.type != "MESH":
         return -1
 
-    bboxco = [Vector(co) for co in obj.bound_box]
+    bboxco_x = [Vector(co).x for co in obj.bound_box]
+    bboxco_y = [Vector(co).y for co in obj.bound_box]
+    bboxco_z = [Vector(co).z for co in obj.bound_box]
 
-    minbbox = min(bboxco)
-    maxbbox = max(bboxco)
+    minbbox = Vector((
+        min(bboxco_x),
+        min(bboxco_y),
+        min(bboxco_z)
+    ))
+    maxbbox = Vector((
+        max(bboxco_x),
+        max(bboxco_y),
+        max(bboxco_z)
+    ))
 
     bbox = {
         "min": {
@@ -187,8 +199,18 @@ def get_mesh_data(context, obj, settings):
                     )
                 materials.append(new_material)
 
+    shapes = []
+
+    if 'Key' in bpy.data.shape_keys:
+        for shape in bpy.data.shape_keys['Key'].key_blocks:
+            if shape.name != "Basis":
+                shapes.append({
+                "index": bpy.data.shape_keys['Key'].key_blocks.find(shape.name), 
+                "name": shape.name
+                })
+
     mesh = {
-        "mesh_shape_name": obj.name,
+        "mesh_shape_name": re.sub(r'^[\d*] ','',obj.name),
         "bounds": bbox,
         "polygon_type": "UINT16",
         "attributes": attributes,
@@ -199,9 +221,10 @@ def get_mesh_data(context, obj, settings):
         "res2": 0,
         "res3": 0,
         "influence": [{"index": 1, "scale": 36.0}],
-        "vis_shapes": [],
-        "mesh_name": obj.name,
+        "vis_shapes": shapes,
+        "mesh_name": re.sub(r'^[\d*] ','',obj.name),
         "unk13": 0,
+    "morph_shape": []
     }
 
     return mesh
@@ -330,6 +353,38 @@ def get_buffer_data(context, obj, settings, armature):
 
     return data
 
+# TODO
+
+# objs = [obj.to_mesh() for obj in bpy.context.selected_objects if obj.to_mesh().texture_mesh is not None]
+# texspaces = [obj.texture_mesh.texspace_location.to_track_quat('-Z', 'Y') for obj in objs]
+
+# btexspaces = {
+# "min": (
+# signif(min([coord.x for coord in texspaces])),
+# signif(min([coord.y for coord in texspaces])),
+# signif(min([coord.z for coord in texspaces])),
+# signif(min([coord.w for coord in texspaces]))),
+# "max": (
+# signif(max([coord.x for coord in texspaces])),
+# signif(max([coord.y for coord in texspaces])),
+# signif(max([coord.z for coord in texspaces])),
+# signif(min([coord.w for coord in texspaces]))),
+# "mean": (
+# signif(mean([coord.x for coord in texspaces])),
+# signif(mean([coord.y for coord in texspaces])),
+# signif(mean([coord.z for coord in texspaces])),
+# signif(mean([coord.w for coord in texspaces]))),
+# "median": (
+# signif(median([coord.x for coord in texspaces])),
+# signif(median([coord.y for coord in texspaces])),
+# signif(median([coord.z for coord in texspaces])),
+# signif(median([coord.w for coord in texspaces])))
+# }
+
+# for x in btexspaces:
+#     print((x,btexspaces[x]))
+
+
 
 def get_model_data(collection_name, armature_name, meshes, array, settings):
 
@@ -353,7 +408,7 @@ def get_model_data(collection_name, armature_name, meshes, array, settings):
 
     def find_texture_space(array):
         euler_angles = array[0].to_mesh().texspace_location.copy()
-        euler = Euler((euler_angles.x, euler_angles.y, euler_angles.z), "XYZ")
+        euler = Euler(Vector((euler_angles.x, euler_angles.y, euler_angles.z)), "XYZ")
         # TODO I have no idea what I'm doing here
         for item in array:
             euler.x = mean([euler.x, item.to_mesh().texspace_location.x])
