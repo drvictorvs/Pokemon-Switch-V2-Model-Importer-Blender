@@ -13,7 +13,7 @@ bl_info = {
 }
 
 """
-Provide means of importing and exporting Pokémon Switch models.
+Provide a means of importing and exporting Pokémon Switch models.
 """
 
 __all__ = (
@@ -22,20 +22,20 @@ __all__ = (
     "ExportTRSKLJson",
     "ImportTRMDL",
     "ImportTRSKL",
-    "TRMDLProcessor",
 )
 
-import os
+
+import os, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import bpy
 from bpy.props import (BoolProperty, CollectionProperty,  # type: ignore
-                       EnumProperty, IntProperty, StringProperty)
+                        EnumProperty, IntProperty, StringProperty)
 from bpy.types import Operator, PropertyGroup  # type: ignore
 from bpy_extras.io_utils import ExportHelper, ImportHelper
-from .io_pknx import (ExportTRMeshJsons, ExportTRSKLJson, ImportTRMDL,
+from io_pknx import (ExportTRMeshJsons, ExportTRSKLJson, ImportTRMDL,
                       ImportTRSKL)
-from .io_pknx.TRMDLProcessor import TRMDLProcessor
-
 
 class ExportTRMesh(Operator, ExportHelper):
   """Saves TRMDL, TRMSH and TRMBF JSONs for Pokémon Scarlet and Violet."""
@@ -50,6 +50,10 @@ class ExportTRMesh(Operator, ExportHelper):
   )
   include_armature: BoolProperty(
     name="Include Armature",
+    default=True,
+  )
+  use_auto: BoolProperty(
+    name="Get Attributes Automatically",
     default=True,
   )
   use_normal: BoolProperty(
@@ -94,6 +98,7 @@ class ExportTRMesh(Operator, ExportHelper):
     export_settings = {
         "armature": self.use_obj_armature,
         "incl_armature": self.include_armature,
+        "auto": self.use_auto,
         "normal": self.use_normal,
         "tangent": self.use_tangent,
         "binormal": self.use_binormal,
@@ -259,7 +264,7 @@ class PokeArcImport(Operator, ImportHelper):
         if self.multiple == False:
             filename = os.path.basename(self.filepath)
             f = open(os.path.join(directory, filename), "rb")
-            TRMDLProcessor(directory, f, export_settings)
+            ImportTRMDL.from_trmdl_pla(directory, f, export_settings)
             f.close()
             return {"FINISHED"}
         else:
@@ -267,7 +272,7 @@ class PokeArcImport(Operator, ImportHelper):
             obj_list = [item for item in file_list if item.endswith(".trmdl")]
             for item in obj_list:
                 f = open(os.path.join(directory, item), "rb")
-                TRMDLProcessor(directory, f, export_settings)
+                ImportTRMDL.from_trmdl_pla(directory, f, export_settings)
                 f.close()
             return {"FINISHED"}
 

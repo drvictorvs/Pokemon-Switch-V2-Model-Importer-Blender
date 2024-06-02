@@ -1,44 +1,45 @@
-from .utils.fileutils import (
-  fseek,
-  readshort,
-  readfloat,
-  readlong,
-  ftell,
-  readfixedstring,
-  fclose
-)
 import os
 import os.path
 import struct
+from importlib.util import find_spec
+
 import bpy
-from mathutils import Euler, Matrix # type: ignore
-from bpy.props import (BoolProperty, CollectionProperty, StringProperty) # type: ignore
+from bpy.props import (BoolProperty, CollectionProperty,  # type: ignore
+                      StringProperty, EnumProperty)
+from bpy.types import Operator, PropertyGroup
 from bpy_extras.io_utils import ImportHelper
+from mathutils import Euler, Matrix, Vector  # type: ignore
 
-# READ THIS: change to True when running in Blender, False when running using
-# fake-bpy-module-latest
-IN_BLENDER_ENV = True
+from .utils.fileutils import *
+from .utils.blenderutils import *
+
+IN_BLENDER_ENV = find_spec("bpy") is not None
 
 
-class PokeSVSkelImport(bpy.types.Operator, ImportHelper):
+class PokeSVSkelImport(Operator, ImportHelper):
   bl_idname = "custom_import_armature.pokeskelscarletviolet"
   bl_label = "Import"
   bl_options = {"PRESET", "UNDO"}
   filename_ext = ".trskl"
-  filter_glob: StringProperty(
+  filter_glob:StringProperty(
     default="*.trskl",
     options={"HIDDEN"},
     maxlen=255,
   )
-  filepath = bpy.props.StringProperty(
+  filepath:StringProperty(
     subtype="FILE_PATH",
   )
-  files = CollectionProperty(type=bpy.types.PropertyGroup)
+  files = CollectionProperty(type=PropertyGroup)
   bonestructh: BoolProperty(
     name="Bone Extras (WIP)",
     description="Bone Extras (WIP)",
     default=False,
   )
+  # armature_list: EnumProperty(
+  #       name="Armatures",
+  #       description="List of armatures",
+  #       items=get_type_items("ARMATURE")
+  #   )
 
   def draw(self, context):
     layout = self.layout
@@ -49,17 +50,15 @@ class PokeSVSkelImport(bpy.types.Operator, ImportHelper):
     directory = os.path.dirname(self.filepath)
     if self.multiple == False:
       filename = os.path.basename(self.filepath)
-      f = open(os.path.join(directory, filename), "rb")
-      from_trsklsv(directory, f, self.bonestructh)
-      f.close()
+      with open(os.path.join(directory, filename), "rb") as con:
+        from_trsklsv(directory, con, self.bonestructh)
       return {"FINISHED"}
     else:
       file_list = sorted(os.listdir(directory))
       obj_list = [item for item in file_list if item.endswith(".trskl")]
       for item in obj_list:
-        f = open(os.path.join(directory, item), "rb")
-        from_trsklsv(directory, f, self.bonestructh)
-        f.close()
+        with open(os.path.join(directory, item), "rb") as con:
+          from_trsklsv(directory, con, self.bonestructh)
       return {"FINISHED"}
 
 
@@ -227,9 +226,9 @@ def from_trsklsv(filep, trskl, bonestructh):
             bone_rig_array[bone_rig_id] = bone_name
 
           bone_matrix = Matrix.LocRotScale(
-            (bone_tx, bone_ty, bone_tz),
-            Euler((bone_rx, bone_ry, bone_rz)),
-            (bone_sx, bone_sy, bone_sz),
+            Vector((bone_tx, bone_ty, bone_tz)),
+            Euler(Vector((bone_rx, bone_ry, bone_rz))),
+            Vector((bone_sx, bone_sy, bone_sz)),
           )
 
           if IN_BLENDER_ENV:
@@ -270,7 +269,7 @@ def from_trsklsv(filep, trskl, bonestructh):
       bpy.ops.object.editmode_toggle()
 
 
-class PokeArcSkelImport(bpy.types.Operator, ImportHelper):
+class PokeArcSkelImport(Operator, ImportHelper):
   bl_idname = "custom_import_armature.pokeskellegendsarceus"
   bl_label = "Import"
   bl_options = {"PRESET", "UNDO"}
@@ -280,10 +279,10 @@ class PokeArcSkelImport(bpy.types.Operator, ImportHelper):
     options={"HIDDEN"},
     maxlen=255,
   )
-  filepath = bpy.props.StringProperty(
+  filepath = StringProperty(
     subtype="FILE_PATH",
   )
-  files = CollectionProperty(type=bpy.types.PropertyGroup)
+  files = CollectionProperty(type=PropertyGroup)
   rare: BoolProperty(
     name="Load Shiny",
     description="Uses rare material instead of normal one",
@@ -498,9 +497,9 @@ def from_trskl(filep, trskl):
             bone_rig_array[bone_rig_id] = bone_name
 
           bone_matrix = Matrix.LocRotScale(
-            (bone_tx, bone_ty, bone_tz),
-            Euler((bone_rx, bone_ry, bone_rz)),
-            (bone_sx, bone_sy, bone_sz),
+            Vector((bone_tx, bone_ty, bone_tz)),
+            Euler(Vector((bone_rx, bone_ry, bone_rz))),
+            Vector((bone_sx, bone_sy, bone_sz)),
           )
 
           if IN_BLENDER_ENV:

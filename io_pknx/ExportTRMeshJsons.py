@@ -1,15 +1,19 @@
 # credits for trmsh/trmbf exporting go to @mv at Pokémon Switch Modding 
 # Discord Server
 import json
-import os
+import os, sys
 import re
 import struct
 from statistics import mean
 
 import bpy
 from mathutils import Euler, Vector
+from bpy.types import Mesh
+
+print(sys.path)
 
 from .utils import exportutils, fileutils
+from io_pknx import ExportTRSKLJson
 
 if "FLATC_PATH" in os.environ:
   FLATC_PATH = os.environ["FLATC_PATH"]
@@ -21,17 +25,49 @@ TRSKL = ".trskl"
 TRMDL = ".trmdl"
 TRMBF = ".trmbf"
 
-VertFormat = struct.Struct("<fff")
-NormFormat = struct.Struct("<eeee")
-UVFormat = struct.Struct("<ff")
-ColorFormat = struct.Struct("bbbb")
-MTFormat = struct.Struct("<BBBB")
-WTFormat = struct.Struct("<HHHH")
-PolyFormat = struct.Struct("<HHH")
+VERT_FORMAT = struct.Struct("<fff")
+NORM_FORMAT = struct.Struct("<eeee")
+UV_FORMAT = struct.Struct("<ff")
+COLOR_FORMAT = struct.Struct("bbbb")
+MT_FORMAT = struct.Struct("<BBBB")
+WT_FORMAT = struct.Struct("<HHHH")
+POLY_FORMAT = struct.Struct("<HHH")
+
+class SettingsDict(dict):
+  def __init__(self, settings, mesh):
+    
+    def get_mesh_setting(key, default, obj):
+      if not settings["auto"]:
+        return default
+      if "Attr" in obj:
+        return obj["Attr"].get(key, default)
+        
+        
+    self.armature = settings["armature"]
+    self.incl_armature = settings["incl_armature"]
+    self.auto = settings["auto"]
+    self.normal = get_mesh_setting("use_normal", settings["normal"], mesh)
+    self.tangent = get_mesh_setting("use_tangent", settings["tangent"], mesh)
+    self.binormal = get_mesh_setting("use_binormal", settings["binormal"], mesh)
+    self.uv = get_mesh_setting("use_uv", settings["uv"], mesh)
+    self.uv_count = get_mesh_setting("uv_count", settings["uv_count"], mesh)
+    self.color = get_mesh_setting("use_color", settings["color"], mesh)
+    self.color_count = get_mesh_setting("color_count", settings["color_count"], mesh)
+    self.skinning = get_mesh_setting("use_skinning", settings["skinning"], mesh)
+
+  def __getitem__(self, key):
+    return self.get(key, None)
+  
+  def asdict(self):
+    # Convert an instance of SettingsDict to a dictionary
+    return {key: value for key, value in zip(self.keys(), self.values())}
+
 
 def get_mesh_data(context, obj, settings):
   if obj.type != "MESH":
     return -1
+  
+  settings = SettingsDict(settings, obj)
 
   bbox, clip_sphere = exportutils.get_bounds(obj)
   attributes = exportutils.get_mesh_attributes(settings)
@@ -103,18 +139,22 @@ def get_buffer_data(context, obj, settings, armature):
 def get_model_data(collection_name, armature_name, meshes, array, settings):
 
   def find_bounds(array):
-    min_bound = array[0]["bounds"]["min"].copy()
-    max_bound = array[0]["bounds"]["max"].copy()
-    for item in array:
-      min_bound["x"] = min(min_bound["x"], item["bounds"]["min"]["x"])
-      min_bound["y"] = min(min_bound["y"], item["bounds"]["min"]["y"])
-      min_bound["z"] = min(min_bound["z"], item["bounds"]["min"]["z"])
-      max_bound["x"] = max(max_bound["x"], item["bounds"]["max"]["x"])
-      max_bound["y"] = max(max_bound["y"], item["bounds"]["max"]["y"])
-      max_bound["z"] = max(max_bound["z"], item["bounds"]["max"]["z"])
+    # Initialize min and max bounds with the first item's bounds
+    min_x, min_y, min_z = array[0]["bounds"]["min"].values()
+    max_x, max_y, max_z = array[0]["bounds"]["max"].values()
 
-    # Return the new bounds struct
-    return {"min": min_bound, "max": max_bound}
+    # Iterate over the array starting from the second item
+    for item in array[1:]:
+        # Update min bounds
+        x, y, z = item["bounds"]["min"].values()
+        min_x, min_y, min_z = min(min_x, x), min(min_y, y), min(min_z, z)
+
+        # Update max bounds
+        x, y, z = item["bounds"]["max"].values()
+        max_x, max_y, max_z = max(max_x, x), max(max_y, y), max(max_z, z)
+
+    # Return the updated bounds as dictionaries
+    return {"min": {"x": min_x, "y": min_y, "z": min_z}, "max": {"x": max_x, "y": max_y, "z": max_z}}
 
   def find_texture_space(array):
     euler_angles = array[0].to_mesh().texspace_location.copy()
@@ -143,10 +183,10 @@ def get_model_data(collection_name, armature_name, meshes, array, settings):
     ],
     "bounds": find_bounds(meshes),
     "texture_space": {
-      "x": round(texture_space.x, 6),
-      "y": round(texture_space.w, 6),  # don't ask me why
-      "z": round(texture_space.z, 6),
-      "w": round(texture_space.y, 6),
+      "x": texture_space.x,
+      "y": texture_space.w,  # don't ask me why
+      "z": texture_space.z,
+      "w": texture_space.y,
       # "x": -0.0,
       # "y": 0.978069,
       # "z": 0.013804,
@@ -211,7 +251,7 @@ def save_jsons(self, context, dest_dir, export_settings):
         buffers.append(
         get_buffer_data(context, obj, export_settings,
                 obj.find_armature())
-      )
+        )
         meshes.append(get_mesh_data(context, obj, export_settings))
       export_buffers = {
       "unused": 0,
@@ -230,17 +270,22 @@ def save_jsons(self, context, dest_dir, export_settings):
       dest_dir, collection_name + TRMSH + self.filename_ext
     )
       with open(meshes_filepath, "w", encoding="utf-8") as f:
-        f.write(json.dumps(export_meshes, indent=2))
+        f.write(json.dumps(fileutils.serialize(export_meshes), indent=2))
       
       buffers_filepath = os.path.join(
       dest_dir, collection_name + TRMBF + self.filename_ext
     )
       with open(buffers_filepath, "w", encoding="utf-8") as f:
-        f.write(json.dumps(export_buffers, indent=2))
+        f.write(json.dumps(fileutils.serialize(export_buffers), indent=2))
       
       model_filepath = os.path.join(
       dest_dir, collection_name + TRMDL + self.filename_ext
     )
       with open(model_filepath, "w", encoding="utf-8") as f:
-        f.write(json.dumps(export_model, indent=2))
+        f.write(json.dumps(fileutils.serialize(export_model), indent=2))
+
+      for armature in armatures:
+        arm_obj = bpy.data.armatures.get(armature)
+        ExportTRSKLJson.save_skeleton_data(arm_obj, dest_dir)
+
       return meshes_filepath,buffers_filepath,model_filepath

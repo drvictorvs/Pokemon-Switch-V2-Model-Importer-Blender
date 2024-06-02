@@ -1,7 +1,13 @@
 import json
 import os
 
-from .utils.fileutils import to_binary
+from bpy.types import  Armature, Bone, PoseBone
+from bpy_types import Object
+
+from io_pknx.utils.misc import Context
+from mathutils import Euler, Vector
+
+from .utils.fileutils import serialize, to_binary
 
 if "FLATC_PATH" in os.environ:
   FLATC_PATH = os.environ["FLATC_PATH"]
@@ -23,7 +29,7 @@ def get_pose_bone_transform(pose_bone):
   }
 
 
-def get_pose_bone_pivot(pose_bone):
+def get_pose_bone_pivot(pose_bone: PoseBone):
   if pose_bone.parent:
     pivot_tail = pose_bone.parent.matrix.inverted() @ pose_bone.bone.tail_local
     pivot_head = pose_bone.parent.matrix.inverted() @ pose_bone.bone.head_local
@@ -37,17 +43,18 @@ def get_pose_bone_pivot(pose_bone):
   }
 
 
-def get_bone_matrix(bone):
-  return {
-    "x": {"x": bone.matrix[0][0], "y": bone.matrix[1][0], "z": bone.matrix[2][0]},
-    "y": {"x": bone.matrix[0][1], "y": bone.matrix[1][1], "z": bone.matrix[2][1]},
-    "z": {"x": bone.matrix[0][2], "y": bone.matrix[1][2], "z": bone.matrix[2][2]},
-    "w": {"x": bone.head_local.x, "y": bone.head_local.y, "z": bone.head_local.z},
-  }
+def get_bone_matrix(bone: Bone):
+  with Context(bone):
+    return {
+      "x": {"x": matrix[0][0], "y": matrix[1][0], "z": matrix[2][0]},
+      "y": {"x": matrix[0][1], "y": matrix[1][1], "z": matrix[2][1]},
+      "z": {"x": matrix[0][2], "y": matrix[1][2], "z": matrix[2][2]},
+      "w": {"x": head_local.x, "y": head_local.y, "z": head_local.z},
+    }
 
 
-# TODO
-def get_ik_data(pose_bone):
+
+def get_ik_data(pose_bone: PoseBone): # TODO
   ik_data = []
   for constraint in pose_bone.constraints:
     if constraint.type == "IK":
@@ -64,21 +71,8 @@ def get_ik_data(pose_bone):
   return ik_data
 
 
-def save_skeleton_data(armature, path):
-  def serialize(o):
-    if isinstance(o, float):
-      if abs(o) < 1e-5:
-        return float(0)
-      return round(o, 6)
-    if isinstance(o, dict):
-      return {k: serialize(v) for k, v in o.items()}
-    if isinstance(o, list):
-      return [serialize(element) for element in o]
-    return o
-
-  if not armature or armature.type != "ARMATURE":
-    print(f"Armature '{armature.data.name}' not found.")
-    return
+def save_skeleton_data(armature: Object, path: str):
+  
   transform_nodes = []
   iks = []
   bones = []
