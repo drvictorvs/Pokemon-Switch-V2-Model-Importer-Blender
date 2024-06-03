@@ -1,6 +1,6 @@
 from io_pknx.ImportTRMDL import from_trmdl_scvi, from_trmdl_pla
 
-filep = "C:\\Users\\victor.vasconcelos\\OneDrive\\Games\\Modding\\Scarlet\\Taller\\p0_hrs1010_halfup\\"
+filep = ".\\tests"
 trmdl = open(filep + "p0_hrs1010_00_hrs00.trmdl", "rb")
 settings = {
             "rare": False,
@@ -10,10 +10,10 @@ settings = {
 
 exception = None
 
-from_trmdl_pla(filep, trmdl, settings)
+from_trmdl_pla(".\\tests", open(filep + "p0_hrs1010_00_hrs00.trmdl", "rb"), settings)
 
 
-filep = "C:\\Users\\victor.vasconcelos\\OneDrive\\Games\\Modding\\Scarlet\\Taller\\p0_hrs1010_halfup\\"
+filep = ".\\tests"
 trmdl = open(filep + "p0_hrs1010_00_hrs00.trmdl", "rb")
 settings = {
             "rare": False,
